@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { supabase } from './lib/supabaseClient';
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
 
 // Layout & Pages
 import AppLayout from './components/AppLayout';
@@ -12,6 +10,7 @@ import AddProfileScreen from './pages/AddProfileScreen';
 import ReplySimulatorScreen from './pages/ReplySimulatorScreen';
 import SettingsScreen from './pages/SettingsScreen';
 import HelpScreen from './pages/HelpScreen';
+import LandingPage from './pages/LandingPage'; // <--- NEW IMPORT
 
 // 1. Setup Query Client
 const queryClient = new QueryClient();
@@ -59,7 +58,7 @@ function AppContent() {
           {currentChatScreen === 'add' && (
             <AddProfileScreen 
               onBack={handleNavigateToHome} 
-              onProfileCreated={handleNavigateToHome} // Added this prop to go back after success
+              onProfileCreated={handleNavigateToHome}
             />
           )}
           
@@ -109,38 +108,9 @@ export default function App() {
 
   if (loading) return null;
 
-  // IF NOT LOGGED IN -> Show Login Screen (Centered & Clean)
+  // IF NOT LOGGED IN -> Show LANDING PAGE
   if (!session) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-          <div className="bg-indigo-600 p-8 text-center">
-             <img src="/favicon.png" alt="Kue Logo" className="w-16 h-16 mx-auto bg-white rounded-xl p-2 shadow-lg mb-4" />
-             <h1 className="text-3xl font-bold text-white">Kue</h1>
-             <p className="text-indigo-100 mt-2">Your AI Social Wingman</p>
-          </div>
-          
-          <div className="p-8">
-            <Auth 
-              supabaseClient={supabase} 
-              appearance={{ 
-                theme: ThemeSupa,
-                variables: {
-                  default: {
-                    colors: {
-                      brand: '#4f46e5',
-                      brandAccent: '#4338ca',
-                    }
-                  }
-                }
-              }} 
-              providers={['google']} 
-              theme="light"
-            />
-          </div>
-        </div>
-      </div>
-    );
+    return <LandingPage />;
   }
 
   // IF LOGGED IN -> Show the App Content

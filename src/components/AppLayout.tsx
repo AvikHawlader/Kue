@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MessageSquare, Settings, LogOut, Menu, X, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MessageSquare, Settings, LogOut, Menu, X, HelpCircle, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 interface AppLayoutProps {
@@ -10,6 +10,26 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, currentPage, onNavigate }: AppLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
+
+  // Fetch user credits on mount
+  useEffect(() => {
+    const fetchCredits = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('user_credits')
+          .select('credits_remaining')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (data) {
+          setCredits(data.credits_remaining);
+        }
+      }
+    };
+    fetchCredits();
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -32,10 +52,29 @@ export default function AppLayout({ children, currentPage, onNavigate }: AppLayo
     </button>
   );
 
+  // The Credit Counter UI Component
+  const CreditCounter = () => (
+    <div className="mx-4 mt-auto mb-4 p-4 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-indigo-600">Free Plan</span>
+        <Zap size={14} className="text-amber-500 fill-amber-500" />
+      </div>
+      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+        {credits !== null ? credits : '-'}
+        <span className="text-sm font-normal text-slate-400">/5</span>
+      </div>
+      <p className="text-xs text-slate-500 mt-1">Generations left</p>
+      
+      <button className="w-full mt-3 py-1.5 text-xs font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
+        Upgrade to Pro
+      </button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card/30 backdrop-blur-xl fixed h-full">
+      <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card/30 backdrop-blur-xl fixed h-full z-20">
         <div className="p-6 flex items-center space-x-3">
           <img src="/favicon.png" alt="Kue Logo" className="w-8 h-8 object-contain" />
           <span className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
@@ -48,6 +87,9 @@ export default function AppLayout({ children, currentPage, onNavigate }: AppLayo
           <NavItem page="settings" icon={Settings} label="Settings" />
           <NavItem page="help" icon={HelpCircle} label="How to Use" />
         </nav>
+
+        {/* Credits Display */}
+        <CreditCounter />
 
         <div className="p-4 border-t border-border">
           <button
@@ -73,18 +115,20 @@ export default function AppLayout({ children, currentPage, onNavigate }: AppLayo
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-background pt-20 px-4 md:hidden">
-           <nav className="space-y-2">
+        <div className="fixed inset-0 z-40 bg-background pt-20 px-4 md:hidden flex flex-col">
+           <nav className="space-y-2 flex-1">
             <NavItem page="chat" icon={MessageSquare} label="Chat Profiles" />
             <NavItem page="settings" icon={Settings} label="Settings" />
             <NavItem page="help" icon={HelpCircle} label="How to Use" />
-            <div className="pt-8">
-              <button onClick={handleLogout} className="flex items-center space-x-3 text-red-500 w-full px-4 py-3">
-                <LogOut size={20} />
-                <span>Sign Out</span>
-              </button>
-            </div>
           </nav>
+          
+          <div className="pb-8">
+            <CreditCounter />
+            <button onClick={handleLogout} className="flex items-center space-x-3 text-red-500 w-full px-4 py-3 border-t border-border mt-4">
+              <LogOut size={20} />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       )}
 
