@@ -114,8 +114,14 @@ export default function LandingPage() {
           <div className="flex justify-center gap-8 opacity-50 grayscale">
             <span className="font-bold text-xl">Hinge</span>
             <span className="font-bold text-xl">Tinder</span>
-            <span className="font-bold text-xl">Bumble</span>
+            <span className="font-bold text-xl">Instagram</span>
             <span className="font-bold text-xl">WhatsApp</span>
+          </div>
+        {/* The Made In India Badge */}
+          <div className="pt-8 border-t border-white/5">
+             <p className="text-sm text-gray-600 flex items-center justify-center gap-1">
+               Made with <span className="text-red-500 animate-pulse">❤️</span> in India
+             </p>
           </div>
         </div>
       </footer>
