@@ -10,22 +10,65 @@ import AddProfileScreen from './pages/AddProfileScreen';
 import ReplySimulatorScreen from './pages/ReplySimulatorScreen';
 import SettingsScreen from './pages/SettingsScreen';
 import HelpScreen from './pages/HelpScreen';
-import LandingPage from './pages/LandingPage'; // <--- NEW IMPORT
+import LandingPage from './pages/LandingPage';
 
-// 1. Setup Query Client
 const queryClient = new QueryClient();
 
-// 2. Define Types for Navigation
 type SidebarPage = 'chat' | 'settings' | 'help';
 type ChatScreen = 'list' | 'add' | 'simulator';
 
-function AppContent() {
-  // Navigation State
+// --- AUTHENTICATED APP CONTENT ---
+function AppContent({ session }: { session: any }) {
   const [currentSidebarPage, setCurrentSidebarPage] = useState<SidebarPage>('chat');
   const [currentChatScreen, setCurrentChatScreen] = useState<ChatScreen>('list');
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
 
-  // --- NAVIGATION HELPERS ---
+  useEffect(() => {
+    if (!session?.user) return;
+
+    // 1. Initial Fetch
+    const fetchCredits = async () => {
+      const { data, error } = await supabase
+        .from('user_credits')
+        .select('credits_remaining')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (data) {
+        setCredits(data.credits_remaining);
+      } else {
+        // If row is missing, force create it (Self-healing)
+        await supabase.rpc('handle_new_user'); 
+        setCredits(5);
+      }
+    };
+
+    fetchCredits();
+
+    // 2. Real-time Subscription (The Magic Part)
+    // This listens for changes in the database and updates the UI instantly
+    const channel = supabase
+      .channel('realtime-credits')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_credits',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        (payload) => {
+          setCredits(payload.new.credits_remaining);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
   const handleNavigateToHome = () => {
     setCurrentChatScreen('list');
     setSelectedProfile(null);
@@ -44,8 +87,8 @@ function AppContent() {
     <AppLayout 
       currentPage={currentSidebarPage} 
       onNavigate={setCurrentSidebarPage}
+      credits={credits} 
     >
-      {/* 1. CHAT TAB (Contains your main app logic) */}
       {currentSidebarPage === 'chat' && (
         <div className="animate-in fade-in duration-300">
           {currentChatScreen === 'list' && (
@@ -66,39 +109,31 @@ function AppContent() {
             <ReplySimulatorScreen 
               profile={selectedProfile} 
               onBack={handleNavigateToHome} 
+              // We don't need onCreditsUsed anymore because Realtime handles it!
+              onCreditsUsed={() => {}} 
             />
           )}
         </div>
       )}
 
-      {/* 2. SETTINGS TAB */}
-      {currentSidebarPage === 'settings' && (
-        <SettingsScreen />
-      )}
-
-      {/* 3. HELP TAB */}
-      {currentSidebarPage === 'help' && (
-        <HelpScreen />
-      )}
-
+      {currentSidebarPage === 'settings' && <SettingsScreen />}
+      {currentSidebarPage === 'help' && <HelpScreen />}
       <Toaster />
     </AppLayout>
   );
 }
 
-// 4. The Wrapper (Handles Login/Auth)
+// --- MAIN WRAPPER ---
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // Listen for changes (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -108,15 +143,13 @@ export default function App() {
 
   if (loading) return null;
 
-  // IF NOT LOGGED IN -> Show LANDING PAGE
   if (!session) {
     return <LandingPage />;
   }
 
-  // IF LOGGED IN -> Show the App Content
   return (
     <QueryClientProvider client={queryClient}>
-        <AppContent/>
+        <AppContent session={session} />
     </QueryClientProvider>
   );
 }
