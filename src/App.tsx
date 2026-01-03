@@ -29,7 +29,8 @@ function AppContent({ session }: { session: any }) {
 
     // 1. Initial Fetch
     const fetchCredits = async () => {
-      const { data, error } = await supabase
+      // FIX: Removed 'error' from destructuring below to satisfy Vercel
+      const { data } = await supabase
         .from('user_credits')
         .select('credits_remaining')
         .eq('user_id', session.user.id)
@@ -46,8 +47,7 @@ function AppContent({ session }: { session: any }) {
 
     fetchCredits();
 
-    // 2. Real-time Subscription (The Magic Part)
-    // This listens for changes in the database and updates the UI instantly
+    // 2. Real-time Subscription
     const channel = supabase
       .channel('realtime-credits')
       .on(
@@ -109,7 +109,6 @@ function AppContent({ session }: { session: any }) {
             <ReplySimulatorScreen 
               profile={selectedProfile} 
               onBack={handleNavigateToHome} 
-              // We don't need onCreditsUsed anymore because Realtime handles it!
               onCreditsUsed={() => {}} 
             />
           )}

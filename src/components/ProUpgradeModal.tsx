@@ -44,14 +44,15 @@ export default function ProUpgradeModal({ isOpen, onClose }: ProUpgradeModalProp
 
     // 3. Open Payment Options
     const options = {
-      key: "rzp_test_RzMK7npP45C2pl", // <--- FIXED: Your actual key is now here
+      key: "rzp_test_RzMK7npP45C2pl", // YOUR ACTUAL KEY
       amount: orderData.amount,
       currency: orderData.currency,
       name: "Kue Pro",
       description: "Upgrade to Unlimited",
       image: "/favicon.png",
       order_id: orderData.id,
-      handler: function (response: any) {
+      // FIX: Renamed 'response' to '_response' to satisfy Vercel
+      handler: function (_response: any) {
         alert("Welcome to Pro! Your credits are being updated.");
         window.location.reload();
       },

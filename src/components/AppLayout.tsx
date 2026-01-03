@@ -52,14 +52,15 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
 
     // 4. Open Razorpay Options
     const options = {
-      key: "rzp_test_RzMK7npP45C2pl", // YOUR ACTUAL KEY
+      key: "rzp_test_RzMK7npP45C2pl", // YOUR KEY
       amount: orderData.amount,
       currency: orderData.currency,
       name: "Kue App",
       description: "Upgrade to Pro Plan",
       image: "/favicon.png",
       order_id: orderData.id,
-      handler: function (response: any) {
+      // FIX: Renamed 'response' to '_response' to satisfy Vercel
+      handler: function (_response: any) {
         alert("Payment Successful! Your account is being upgraded.");
         window.location.reload(); 
       },
@@ -160,7 +161,6 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
       </div>
 
       {/* Mobile Menu Overlay */}
-      {/* FIXED: Added 'bg-white' and 'z-50' to force solid background on top */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-white pt-20 px-4 md:hidden flex flex-col animate-in fade-in duration-200">
            <nav className="space-y-2 flex-1">
