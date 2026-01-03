@@ -20,7 +20,7 @@ const queryClient = new QueryClient();
 type SidebarPage = 'chat' | 'settings' | 'help';
 type ChatScreen = 'list' | 'add' | 'simulator';
 
-function AppContent({ session }: { session: any }) {
+function AppContent() {
   // Navigation State
   const [currentSidebarPage, setCurrentSidebarPage] = useState<SidebarPage>('chat');
   const [currentChatScreen, setCurrentChatScreen] = useState<ChatScreen>('list');
@@ -146,7 +146,7 @@ export default function App() {
   // IF LOGGED IN -> Show the App Content
   return (
     <QueryClientProvider client={queryClient}>
-        <AppContent session={session} />
+        <AppContent/>
     </QueryClientProvider>
   );
 }
