@@ -28,7 +28,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
-  // FIX: Track exactly what text the user has paid for
+  // Track exactly what text the user has paid for
   const [lastPaidText, setLastPaidText] = useState<string | null>(null);
   
   const [loadingStep, setLoadingStep] = useState(0);
@@ -53,7 +53,8 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
 
     setIsGenerating(true);
     
-    // Clear replies only if it's a "New" generation to show fresh state
+    // UI Feedback: If generating new (paid), clear list. 
+    // If regenerating (free), keep list but dim it (handled by isGenerating disabled state)
     if (!isRegeneration) {
       setReplies([]);
       setSelectedReply(null);
@@ -62,9 +63,11 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     try {
        const effectiveReplyType = replyType === 'custom' ? customReplyType : replyType;
        
-       // Force fresh variations on Regen
+       // --- THE FIX: RANDOMIZER ---
+       // We inject a timestamp to force the AI to see a "New" request every time.
+       // This prevents it from returning the same cached answer.
        const aiInstruction = isRegeneration 
-         ? `${effectiveReplyType}. IMPORTANT: Provide 3 completely different, fresh options than usual.` 
+         ? `${effectiveReplyType}. (Variation ID: ${Date.now()}) IMPORTANT: Write 3 completely new and different options than before.` 
          : effectiveReplyType;
        
        const { data, error } = await supabase.functions.invoke('generate-reply', {
@@ -81,9 +84,9 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
         setReplies(data.replies);
         toast.success(isRegeneration ? 'Replies refreshed!' : 'Replies generated!');
         
-        // --- SAFE CREDIT LOGIC ---
-        // Check if the current text matches what we already paid for.
-        // If it matches, it is FREE (even if Vibe changed).
+        // --- STRICT CREDIT LOGIC ---
+        // Only charge if the text has CHANGED from the last paid text.
+        // Changing Vibe or clicking Regenerate does NOT cost money if text is same.
         const isSameText = incomingMessage === lastPaidText;
 
         if (!isSameText) {
@@ -118,16 +121,16 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // UI STATE LOGIC
+  // --- BUTTON STATE LOGIC ---
   const isTextEmpty = !incomingMessage.trim();
   
-  // Is this text exactly what we generated last time?
+  // Logic: "Have I paid for this specific sentence yet?"
   const isPaidText = lastPaidText === incomingMessage;
   
-  // Main Button: Active ONLY if text is new (unpaid)
+  // Main Button (Generate): Active ONLY if I haven't paid for this text yet
   const canGenerate = !isTextEmpty && !isGenerating && !isPaidText;
   
-  // Regen Button: Active ONLY if text is already paid (Free Mode)
+  // Regen Button (Refresh): Active ONLY if I HAVE paid for this text already
   const canRegenerate = !isTextEmpty && !isGenerating && isPaidText;
 
   return (
@@ -196,7 +199,8 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
             </div>
             
             <div className="flex gap-3">
-              {/* Button 1: Main Generate (Only Active for New Text) */}
+              {/* Button 1: Main Generate (COSTS CREDIT) */}
+              {/* Only active if text is NEW */}
               <button
                 onClick={() => handleGenerate(false)}
                 disabled={!canGenerate}
@@ -221,7 +225,8 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
                 )}
               </button>
 
-              {/* Button 2: Regenerate (Active if Text is Paid - FREE) */}
+              {/* Button 2: Regenerate (FREE) */}
+              {/* Only active if text is PAID */}
               <button
                 onClick={() => handleGenerate(true)}
                 disabled={!canRegenerate}
