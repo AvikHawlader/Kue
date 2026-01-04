@@ -52,7 +52,7 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
 
     // 4. Open Razorpay Options
     const options = {
-      key: "rzp_test_RzMK7npP45C2pl", // YOUR KEY
+      key: "rzp_test_RzMK7npP45C2pl", // YOUR ACTUAL KEY
       amount: orderData.amount,
       currency: orderData.currency,
       name: "Kue App",
@@ -146,7 +146,7 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
         </div>
       </aside>
 
-      {/* Mobile Header */}
+      {/* Mobile Header (High Z-Index to stay above menu) */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-[60] bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <img src="/favicon.png" alt="Logo" className="w-8 h-8" />
@@ -160,27 +160,31 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
         </button>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-white pt-20 px-4 md:hidden flex flex-col animate-in fade-in duration-200">
-           <nav className="space-y-2 flex-1">
-            <NavItem page="chat" icon={MessageSquare} label="Chat Profiles" />
-            <NavItem page="settings" icon={Settings} label="Settings" />
-            <NavItem page="help" icon={HelpCircle} label="How to Use" />
-          </nav>
-          
-          <div className="pb-8 space-y-4">
-            <CreditCounter />
-            <button 
-              onClick={handleLogout} 
-              className="flex items-center space-x-3 text-red-500 w-full px-4 py-3 border-t border-slate-100"
-            >
-              <LogOut size={20} />
-              <span>Sign Out</span>
-            </button>
-          </div>
+      {/* Mobile Menu Overlay (FIX: Persistent DOM + CSS Transitions) */}
+      <div 
+        className={`fixed inset-0 z-50 bg-white pt-20 px-4 md:hidden flex flex-col transition-all duration-300 ease-in-out ${
+          isMobileMenuOpen 
+            ? 'opacity-100 visible translate-y-0' 
+            : 'opacity-0 invisible -translate-y-2 pointer-events-none'
+        }`}
+      >
+         <nav className="space-y-2 flex-1">
+          <NavItem page="chat" icon={MessageSquare} label="Chat Profiles" />
+          <NavItem page="settings" icon={Settings} label="Settings" />
+          <NavItem page="help" icon={HelpCircle} label="How to Use" />
+        </nav>
+        
+        <div className="pb-8 space-y-4">
+          <CreditCounter />
+          <button 
+            onClick={handleLogout} 
+            className="flex items-center space-x-3 text-red-500 w-full px-4 py-3 border-t border-slate-100"
+          >
+            <LogOut size={20} />
+            <span>Sign Out</span>
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Main Content Area */}
       <main className="flex-1 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 overflow-y-auto bg-slate-50 min-h-screen">
