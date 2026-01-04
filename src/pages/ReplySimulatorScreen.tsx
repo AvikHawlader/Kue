@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, RefreshCw, Copy, Check, BrainCircuit } from 'lucide-react';
+import { ArrowLeft, Sparkles, Copy, Check, BrainCircuit } from 'lucide-react'; // FIX: Removed RefreshCw
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import KeyboardBar from '../components/KeyboardBar'; 
@@ -11,7 +11,7 @@ interface ReplySimulatorScreenProps {
   onTriggerPro: () => void;
 }
 
-// FIX: Completely neutral steps suitable for Friends, Work, or Family
+// Neutral steps suitable for Friends, Work, or Family
 const LOADING_STEPS = [
   "Reading message...",
   "Understanding context...",
