@@ -11,7 +11,6 @@ interface ReplySimulatorScreenProps {
   onTriggerPro: () => void;
 }
 
-// Neutral steps suitable for Friends, Work, or Family
 const LOADING_STEPS = [
   "Reading message...",
   "Understanding context...",
@@ -29,20 +28,18 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
-  // Track the last paid message to allow free regenerations
-  const [lastGeneratedMessage, setLastGeneratedMessage] = useState<string | null>(null);
+  // FIX: Track exactly what text the user has paid for
+  const [lastPaidText, setLastPaidText] = useState<string | null>(null);
   
-  // Labor Illusion State
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // Cycle through "thinking" steps while generating
   useEffect(() => {
     let interval: any;
     if (isGenerating) {
       setLoadingStep(0);
       interval = setInterval(() => {
         setLoadingStep((prev) => (prev + 1) % LOADING_STEPS.length);
-      }, 800); // Change text every 800ms
+      }, 800);
     }
     return () => clearInterval(interval);
   }, [isGenerating]);
@@ -56,8 +53,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
 
     setIsGenerating(true);
     
-    // If it's a new generation, clear old replies so the UI doesn't look stale
-    // If it's a regeneration, we keep them visible until the new ones arrive (smoother UX)
+    // Clear replies only if it's a "New" generation to show fresh state
     if (!isRegeneration) {
       setReplies([]);
       setSelectedReply(null);
@@ -66,17 +62,16 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     try {
        const effectiveReplyType = replyType === 'custom' ? customReplyType : replyType;
        
-       // FIX: Force the AI to think differently if it's a regeneration
-       // We append a hidden instruction that forces a new calculation path
+       // Force fresh variations on Regen
        const aiInstruction = isRegeneration 
-         ? `${effectiveReplyType}. IMPORTANT: Provide 3 completely different, fresh options than the standard ones.` 
+         ? `${effectiveReplyType}. IMPORTANT: Provide 3 completely different, fresh options than usual.` 
          : effectiveReplyType;
        
        const { data, error } = await supabase.functions.invoke('generate-reply', {
         body: { 
           message: incomingMessage, 
           profile: profile, 
-          replyType: aiInstruction // <--- sending the modified prompt
+          replyType: aiInstruction 
         }
       });
 
@@ -86,10 +81,14 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
         setReplies(data.replies);
         toast.success(isRegeneration ? 'Replies refreshed!' : 'Replies generated!');
         
-        // CRITICAL LOGIC: Only deduct credit if it's a NEW generation
-        if (!isRegeneration) {
-          onCreditsUsed();
-          setLastGeneratedMessage(incomingMessage); // Mark this text as "Paid"
+        // --- SAFE CREDIT LOGIC ---
+        // Check if the current text matches what we already paid for.
+        // If it matches, it is FREE (even if Vibe changed).
+        const isSameText = incomingMessage === lastPaidText;
+
+        if (!isSameText) {
+          onCreditsUsed(); // Deduct Credit
+          setLastPaidText(incomingMessage); // Mark this text as paid
         }
       }
 
@@ -119,15 +118,17 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // Helper booleans for UI state
+  // UI STATE LOGIC
   const isTextEmpty = !incomingMessage.trim();
-  const isSameAsLast = lastGeneratedMessage === incomingMessage;
   
-  // Generate is clickable ONLY if text exists AND it's a new message
-  const canGenerate = !isTextEmpty && !isGenerating && !isSameAsLast;
+  // Is this text exactly what we generated last time?
+  const isPaidText = lastPaidText === incomingMessage;
   
-  // Regenerate is clickable ONLY if text exists AND it IS the same message (already paid)
-  const canRegenerate = !isTextEmpty && !isGenerating && isSameAsLast;
+  // Main Button: Active ONLY if text is new (unpaid)
+  const canGenerate = !isTextEmpty && !isGenerating && !isPaidText;
+  
+  // Regen Button: Active ONLY if text is already paid (Free Mode)
+  const canRegenerate = !isTextEmpty && !isGenerating && isPaidText;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-indigo-50/20 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -194,9 +195,8 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
                )}
             </div>
             
-            {/* DUAL BUTTON LAYOUT */}
             <div className="flex gap-3">
-              {/* Button 1: Main Generate (Costs Credit) */}
+              {/* Button 1: Main Generate (Only Active for New Text) */}
               <button
                 onClick={() => handleGenerate(false)}
                 disabled={!canGenerate}
@@ -221,11 +221,11 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
                 )}
               </button>
 
-              {/* Button 2: Regenerate (Free) */}
+              {/* Button 2: Regenerate (Active if Text is Paid - FREE) */}
               <button
                 onClick={() => handleGenerate(true)}
                 disabled={!canRegenerate}
-                title="Regenerate (Free)"
+                title={canRegenerate ? "Try again with current vibe (Free)" : "Enter text first"}
                 className={`w-14 h-12 rounded-xl flex items-center justify-center transition-all border-2 ${
                   canRegenerate
                     ? 'border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50 shadow-md cursor-pointer active:scale-95'
