@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, Sparkles, RefreshCw, Copy, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Sparkles, RefreshCw, Copy, Check, BrainCircuit } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import KeyboardBar from '../components/KeyboardBar'; 
@@ -8,8 +8,17 @@ interface ReplySimulatorScreenProps {
   profile: any;
   onBack: () => void;
   onCreditsUsed: () => void;
-  onTriggerPro: () => void; // <--- ADDED
+  onTriggerPro: () => void;
 }
+
+// FIX: Completely neutral steps suitable for Friends, Work, or Family
+const LOADING_STEPS = [
+  "Reading message...",
+  "Understanding context...",
+  "Drafting options...",
+  "Refining tone...",
+  "Finalizing..."
+];
 
 export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, onTriggerPro }: ReplySimulatorScreenProps) {
   const [incomingMessage, setIncomingMessage] = useState('');
@@ -20,7 +29,20 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
-  // Removed local Modal state
+  // Labor Illusion State
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  // Cycle through "thinking" steps while generating
+  useEffect(() => {
+    let interval: any;
+    if (isGenerating) {
+      setLoadingStep(0);
+      interval = setInterval(() => {
+        setLoadingStep((prev) => (prev + 1) % LOADING_STEPS.length);
+      }, 800); // Change text every 800ms
+    }
+    return () => clearInterval(interval);
+  }, [isGenerating]);
 
   const handleGenerate = async () => {
     if (!incomingMessage.trim()) {
@@ -52,15 +74,13 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
       }
 
     } catch (error: any) {
-      // --- SMART ERROR HANDLING ---
-      // Check for 402 status (Payment Required) or explicit error messages
       const isOutOfCredits = 
         error.context?.status === 402 || 
         (error.message && error.message.includes("402")) ||
         (error.message && error.message.includes("OUT_OF_CREDITS"));
 
       if (isOutOfCredits) {
-        onTriggerPro(); // <--- Trigger GLOBAL Modal
+        onTriggerPro(); 
         setIsGenerating(false);
         return;
       }
@@ -143,16 +163,19 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
                   </div>
                )}
             </div>
+            
             <button
               onClick={handleGenerate}
               disabled={isGenerating || !incomingMessage.trim()}
-              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-medium shadow-lg shadow-indigo-200/50 disabled:shadow-none flex items-center justify-center gap-2 transition-all transform active:scale-[0.98]"
+              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-medium shadow-lg shadow-indigo-200/50 disabled:shadow-none flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] overflow-hidden relative"
             >
               {isGenerating ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Thinking...</span>
-                </>
+                <div className="flex items-center gap-2 animate-in fade-in duration-300">
+                  <BrainCircuit className="w-5 h-5 animate-pulse" />
+                  <span className="min-w-[140px] text-left">
+                    {LOADING_STEPS[loadingStep] || "Thinking..."}
+                  </span>
+                </div>
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
@@ -160,6 +183,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
                 </>
               )}
             </button>
+            
             <p className="text-center text-xs text-slate-400">Costs 1 Credit per generation</p>
           </div>
         </div>
