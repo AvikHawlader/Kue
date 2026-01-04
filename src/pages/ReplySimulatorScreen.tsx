@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, Copy, Check, BrainCircuit, RotateCcw } from 'lucide-react'; // Added RotateCcw
+import { ArrowLeft, Sparkles, Copy, Check, BrainCircuit, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import KeyboardBar from '../components/KeyboardBar'; 
@@ -11,6 +11,7 @@ interface ReplySimulatorScreenProps {
   onTriggerPro: () => void;
 }
 
+// Neutral steps suitable for Friends, Work, or Family
 const LOADING_STEPS = [
   "Reading message...",
   "Understanding context...",
@@ -28,19 +29,20 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
-  // NEW: Track the last paid message to allow free regenerations
+  // Track the last paid message to allow free regenerations
   const [lastGeneratedMessage, setLastGeneratedMessage] = useState<string | null>(null);
   
   // Labor Illusion State
   const [loadingStep, setLoadingStep] = useState(0);
 
+  // Cycle through "thinking" steps while generating
   useEffect(() => {
     let interval: any;
     if (isGenerating) {
       setLoadingStep(0);
       interval = setInterval(() => {
         setLoadingStep((prev) => (prev + 1) % LOADING_STEPS.length);
-      }, 800);
+      }, 800); // Change text every 800ms
     }
     return () => clearInterval(interval);
   }, [isGenerating]);
@@ -53,17 +55,28 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     }
 
     setIsGenerating(true);
-    setReplies([]);
-    setSelectedReply(null);
+    
+    // If it's a new generation, clear old replies so the UI doesn't look stale
+    // If it's a regeneration, we keep them visible until the new ones arrive (smoother UX)
+    if (!isRegeneration) {
+      setReplies([]);
+      setSelectedReply(null);
+    }
 
     try {
        const effectiveReplyType = replyType === 'custom' ? customReplyType : replyType;
+       
+       // FIX: Force the AI to think differently if it's a regeneration
+       // We append a hidden instruction that forces a new calculation path
+       const aiInstruction = isRegeneration 
+         ? `${effectiveReplyType}. IMPORTANT: Provide 3 completely different, fresh options than the standard ones.` 
+         : effectiveReplyType;
        
        const { data, error } = await supabase.functions.invoke('generate-reply', {
         body: { 
           message: incomingMessage, 
           profile: profile, 
-          replyType: effectiveReplyType 
+          replyType: aiInstruction // <--- sending the modified prompt
         }
       });
 
@@ -181,7 +194,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
                )}
             </div>
             
-            {/* NEW: DUAL BUTTON LAYOUT */}
+            {/* DUAL BUTTON LAYOUT */}
             <div className="flex gap-3">
               {/* Button 1: Main Generate (Costs Credit) */}
               <button
