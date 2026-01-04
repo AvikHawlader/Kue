@@ -13,9 +13,14 @@ import HelpScreen from './pages/HelpScreen';
 import LandingPage from './pages/LandingPage';
 import ProUpgradeModal from './components/ProUpgradeModal';
 
+// NEW: Import Legal Pages
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+
 const queryClient = new QueryClient();
 
-type SidebarPage = 'chat' | 'settings' | 'help';
+// Updated Types to include legal pages
+type SidebarPage = 'chat' | 'settings' | 'help' | 'privacy' | 'terms';
 type ChatScreen = 'list' | 'add' | 'simulator';
 
 // --- AUTHENTICATED APP CONTENT ---
@@ -90,10 +95,21 @@ function AppContent({ session }: { session: any }) {
   };
 
   // FIX: Optimistic Update function.
-  // This updates the UI *immediately* without waiting for the database/realtime.
   const handleCreditsUsedOptimistically = () => {
     setCredits((prev) => (prev && prev > 0 ? prev - 1 : 0));
   };
+
+  // --- ROUTING LOGIC FOR LEGAL PAGES ---
+  // We render these completely separate from the sidebar layout for focus,
+  // or we can wrap them in the layout. Here, full screen is often cleaner for reading legal text.
+  
+  if (currentSidebarPage === 'privacy') {
+    return <PrivacyPolicy onBack={() => setCurrentSidebarPage('settings')} />;
+  }
+
+  if (currentSidebarPage === 'terms') {
+    return <TermsOfService onBack={() => setCurrentSidebarPage('settings')} />;
+  }
 
   return (
     <AppLayout 
