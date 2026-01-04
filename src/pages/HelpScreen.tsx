@@ -45,6 +45,12 @@ export default function HelpScreen() {
           Instead of just "Boss", try "Strict boss who hates emojis."
         </p>
       </div>
+      <a 
+  href="mailto:avikhawlader2002@gmail.com?subject=Kue%20Support%20Request&body=Describe%20your%20issue%20here..."
+  className="text-indigo-600 hover:underline"
+>
+  Contact Support
+</a>
     </div>
   );
 }
