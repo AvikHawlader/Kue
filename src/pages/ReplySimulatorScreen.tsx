@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, Copy, Check, BrainCircuit } from 'lucide-react'; // FIX: Removed RefreshCw
+import { ArrowLeft, Sparkles, Copy, Check, BrainCircuit, RotateCcw } from 'lucide-react'; // Added RotateCcw
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import KeyboardBar from '../components/KeyboardBar'; 
@@ -11,7 +11,6 @@ interface ReplySimulatorScreenProps {
   onTriggerPro: () => void;
 }
 
-// Neutral steps suitable for Friends, Work, or Family
 const LOADING_STEPS = [
   "Reading message...",
   "Understanding context...",
@@ -29,22 +28,25 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
+  // NEW: Track the last paid message to allow free regenerations
+  const [lastGeneratedMessage, setLastGeneratedMessage] = useState<string | null>(null);
+  
   // Labor Illusion State
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // Cycle through "thinking" steps while generating
   useEffect(() => {
     let interval: any;
     if (isGenerating) {
       setLoadingStep(0);
       interval = setInterval(() => {
         setLoadingStep((prev) => (prev + 1) % LOADING_STEPS.length);
-      }, 800); // Change text every 800ms
+      }, 800);
     }
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  const handleGenerate = async () => {
+  // Unified Handler
+  const handleGenerate = async (isRegeneration: boolean) => {
     if (!incomingMessage.trim()) {
       toast.error('Please enter an incoming message');
       return;
@@ -69,8 +71,13 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
       
       if (data?.replies) {
         setReplies(data.replies);
-        toast.success('Replies generated!');
-        onCreditsUsed(); 
+        toast.success(isRegeneration ? 'Replies refreshed!' : 'Replies generated!');
+        
+        // CRITICAL LOGIC: Only deduct credit if it's a NEW generation
+        if (!isRegeneration) {
+          onCreditsUsed();
+          setLastGeneratedMessage(incomingMessage); // Mark this text as "Paid"
+        }
       }
 
     } catch (error: any) {
@@ -98,6 +105,16 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     toast.success('Copied to clipboard');
     setTimeout(() => setCopiedIndex(null), 2000);
   };
+
+  // Helper booleans for UI state
+  const isTextEmpty = !incomingMessage.trim();
+  const isSameAsLast = lastGeneratedMessage === incomingMessage;
+  
+  // Generate is clickable ONLY if text exists AND it's a new message
+  const canGenerate = !isTextEmpty && !isGenerating && !isSameAsLast;
+  
+  // Regenerate is clickable ONLY if text exists AND it IS the same message (already paid)
+  const canRegenerate = !isTextEmpty && !isGenerating && isSameAsLast;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-indigo-50/20 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -164,27 +181,51 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
                )}
             </div>
             
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating || !incomingMessage.trim()}
-              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-medium shadow-lg shadow-indigo-200/50 disabled:shadow-none flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] overflow-hidden relative"
-            >
-              {isGenerating ? (
-                <div className="flex items-center gap-2 animate-in fade-in duration-300">
-                  <BrainCircuit className="w-5 h-5 animate-pulse" />
-                  <span className="min-w-[140px] text-left">
-                    {LOADING_STEPS[loadingStep] || "Thinking..."}
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  <span>Generate Replies</span>
-                </>
-              )}
-            </button>
+            {/* NEW: DUAL BUTTON LAYOUT */}
+            <div className="flex gap-3">
+              {/* Button 1: Main Generate (Costs Credit) */}
+              <button
+                onClick={() => handleGenerate(false)}
+                disabled={!canGenerate}
+                className={`flex-1 h-12 rounded-xl font-medium shadow-lg flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] overflow-hidden relative ${
+                  canGenerate 
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200/50' 
+                    : 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
+                }`}
+              >
+                {isGenerating && !canRegenerate ? (
+                  <div className="flex items-center gap-2 animate-in fade-in duration-300">
+                    <BrainCircuit className="w-5 h-5 animate-pulse" />
+                    <span className="min-w-[140px] text-left">
+                      {LOADING_STEPS[loadingStep] || "Thinking..."}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>Generate Replies</span>
+                  </>
+                )}
+              </button>
+
+              {/* Button 2: Regenerate (Free) */}
+              <button
+                onClick={() => handleGenerate(true)}
+                disabled={!canRegenerate}
+                title="Regenerate (Free)"
+                className={`w-14 h-12 rounded-xl flex items-center justify-center transition-all border-2 ${
+                  canRegenerate
+                    ? 'border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50 shadow-md cursor-pointer active:scale-95'
+                    : 'border-slate-200 text-slate-300 bg-slate-50 cursor-not-allowed'
+                }`}
+              >
+                 <RotateCcw className={`w-5 h-5 ${isGenerating && canRegenerate ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
             
-            <p className="text-center text-xs text-slate-400">Costs 1 Credit per generation</p>
+            <p className="text-center text-xs text-slate-400">
+              Costs 1 Credit per new message • <span className="text-indigo-500 font-medium">Free Regenerations</span>
+            </p>
           </div>
         </div>
 
