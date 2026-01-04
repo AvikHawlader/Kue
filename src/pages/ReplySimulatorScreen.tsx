@@ -54,7 +54,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     setIsGenerating(true);
     
     // UI Feedback: If generating new (paid), clear list. 
-    // If regenerating (free), keep list but dim it (handled by isGenerating disabled state)
+    // If regenerating (free), keep list but dim it
     if (!isRegeneration) {
       setReplies([]);
       setSelectedReply(null);
@@ -72,7 +72,9 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
         body: { 
           message: incomingMessage, 
           profile: profile, 
-          replyType: aiInstruction 
+          replyType: aiInstruction,
+          // ⚠️ CRITICAL FIX: SEND THIS FLAG TO BACKEND ⚠️
+          isRegeneration: isRegeneration 
         }
       });
 
@@ -93,7 +95,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
         else {
            // Double check: Is this actually new text?
            if (incomingMessage !== lastPaidText) {
-             onCreditsUsed(); // Deduct Credit
+             onCreditsUsed(); // Deduct Credit on Frontend
              setLastPaidText(incomingMessage); // Mark as paid
            }
         }

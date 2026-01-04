@@ -11,7 +11,7 @@ import ReplySimulatorScreen from './pages/ReplySimulatorScreen';
 import SettingsScreen from './pages/SettingsScreen';
 import HelpScreen from './pages/HelpScreen';
 import LandingPage from './pages/LandingPage';
-import ProUpgradeModal from './components/ProUpgradeModal'; // <--- Lifted Up
+import ProUpgradeModal from './components/ProUpgradeModal';
 
 const queryClient = new QueryClient();
 
@@ -51,7 +51,7 @@ function AppContent({ session }: { session: any }) {
 
     fetchCredits();
 
-    // Real-time Subscription
+    // Real-time Subscription (Source of Truth)
     const channel = supabase
       .channel('realtime-credits')
       .on(
@@ -64,7 +64,7 @@ function AppContent({ session }: { session: any }) {
         },
         (payload) => {
           setCredits(payload.new.credits_remaining);
-          // If credits jump back to 5, re-fetch to get new refill time
+          // If credits jump back to 5 (refill happened), re-fetch to get new refill time
           if (payload.new.credits_remaining === 5) fetchCredits();
         }
       )
@@ -87,6 +87,12 @@ function AppContent({ session }: { session: any }) {
   const handleSelectProfile = (profile: any) => {
     setSelectedProfile(profile);
     setCurrentChatScreen('simulator');
+  };
+
+  // FIX: Optimistic Update function.
+  // This updates the UI *immediately* without waiting for the database/realtime.
+  const handleCreditsUsedOptimistically = () => {
+    setCredits((prev) => (prev && prev > 0 ? prev - 1 : 0));
   };
 
   return (
@@ -117,7 +123,8 @@ function AppContent({ session }: { session: any }) {
             <ReplySimulatorScreen 
               profile={selectedProfile} 
               onBack={handleNavigateToHome} 
-              onCreditsUsed={() => {}} 
+              // FIX: Pass the optimistic handler instead of an empty function
+              onCreditsUsed={handleCreditsUsedOptimistically} 
               onTriggerPro={() => setIsProModalOpen(true)} // Trigger from Error
             />
           )}

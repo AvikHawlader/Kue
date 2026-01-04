@@ -12,7 +12,7 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    // 1. Initialize Supabase Client (To check/update credits)
+    // 1. Initialize Supabase Client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -26,7 +26,11 @@ serve(async (req: Request) => {
       throw new Error("Unauthorized user");
     }
 
-    // 3. CHECK CREDITS
+    // 3. PARSE INPUT EARLY
+    // We need to know if this is a regeneration BEFORE checking credits
+    const { message, profile, replyType, isRegeneration } = await req.json();
+
+    // 4. CHECK CREDITS
     const { data: creditData, error: creditError } = await supabase
       .from('user_credits')
       .select('credits_remaining, is_pro')
@@ -37,23 +41,30 @@ serve(async (req: Request) => {
       throw new Error("Could not find user credits");
     }
 
-    // If not Pro and out of credits -> BLOCK
-    if (!creditData.is_pro && creditData.credits_remaining <= 0) {
+    // --- LOGIC UPDATE START ---
+    
+    // Only block if:
+    // 1. User is NOT Pro
+    // 2. User has 0 or less credits
+    // 3. AND this is NOT a regeneration (Regenerations are allowed even at 0 credits if paid previously)
+    if (!creditData.is_pro && creditData.credits_remaining <= 0 && !isRegeneration) {
       throw new Error("OUT_OF_CREDITS"); 
     }
 
-    // 4. DEDUCT CREDIT (If not Pro)
-    if (!creditData.is_pro) {
+    // 5. DEDUCT CREDIT 
+    // Only deduct if:
+    // 1. User is NOT Pro
+    // 2. AND this is NOT a regeneration
+    if (!creditData.is_pro && !isRegeneration) {
       await supabase
         .from('user_credits')
         .update({ credits_remaining: creditData.credits_remaining - 1 })
         .eq('user_id', user.id);
     }
+    
+    // --- LOGIC UPDATE END ---
 
-    // --- EXISTING AI LOGIC STARTS HERE ---
-    const { message, profile, replyType } = await req.json();
-
-    // Prepare Context & Image
+    // 6. PREPARE AI CONTEXT
     const contextText = profile.context_description || "";
     const urlMatch = contextText.match(/\[SCREENSHOT_URL: (.*?)\]/);
     const imageUrl = urlMatch ? urlMatch[1] : null;
@@ -62,7 +73,7 @@ serve(async (req: Request) => {
     // Select Model
     let selectedModel = 'llama-3.3-70b-versatile';
     if (imageUrl) {
-      selectedModel = 'meta-llama/llama-4-scout-17b-16e-instruct';
+      selectedModel = 'meta-llama/llama-3.2-11b-vision-preview'; // Updated vision model suggestion
     }
 
     // Build Message
@@ -85,7 +96,7 @@ serve(async (req: Request) => {
       });
     }
 
-    // Call Groq
+    // 7. CALL GROQ API
     const groqKey = Deno.env.get('GROQ_API_KEY');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -104,7 +115,7 @@ serve(async (req: Request) => {
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
 
-    // Parse Output
+    // 8. PARSE OUTPUT
     let replyText = data.choices?.[0]?.message?.content || "[]";
     replyText = replyText.replace(/```json/g, '').replace(/```/g, '').trim();
     const firstBracket = replyText.indexOf('[');
