@@ -7,8 +7,8 @@ interface AppLayoutProps {
   currentPage: 'chat' | 'settings' | 'help';
   onNavigate: (page: 'chat' | 'settings' | 'help') => void;
   credits: number | null;
-  nextRefill: string | null; // New Prop
-  onTriggerPro: () => void;  // New Prop
+  nextRefill: string | null;
+  onTriggerPro: () => void;
 }
 
 export default function AppLayout({ children, currentPage, onNavigate, credits, nextRefill, onTriggerPro }: AppLayoutProps) {
@@ -31,7 +31,6 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
         
-        // Format with leading zeros: 02:05:09
         const h = String(hours).padStart(2, '0');
         const m = String(minutes).padStart(2, '0');
         const s = String(seconds).padStart(2, '0');
@@ -40,8 +39,8 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
       }
     };
 
-    updateTimer(); // Run once immediately
-    const timer = setInterval(updateTimer, 1000); // Update every second
+    updateTimer(); 
+    const timer = setInterval(updateTimer, 1000); 
 
     return () => clearInterval(timer);
   }, [nextRefill]);
@@ -89,17 +88,17 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
          </div>
       )}
       
-      {/* Privacy Badge (Trust Feature) */}
+      {/* Privacy Badge */}
       <div className="flex items-center gap-1.5 mb-3 opacity-60 px-1">
         <ShieldCheck size={10} className="text-green-600"/>
         <span className="text-[10px] text-slate-400 font-medium">100% Private & Secure</span>
       </div>
       
       <button 
-        onClick={onTriggerPro} // Triggers Modal -> then Razorpay
+        onClick={onTriggerPro} 
         className="w-full py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
       >
-        Upgrade to Unlimited
+        Upgrade to Pro
       </button>
     </div>
   );
