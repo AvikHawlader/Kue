@@ -1,81 +1,53 @@
-import React, { useState } from 'react';
-import { MessageSquare, Settings, LogOut, Menu, X, HelpCircle, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MessageSquare, Settings, LogOut, Menu, X, HelpCircle, Zap, Clock, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-
-// Helper to load Razorpay script
-function loadRazorpayScript(src: string) {
-  return new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
 
 interface AppLayoutProps {
   children: React.ReactNode;
   currentPage: 'chat' | 'settings' | 'help';
   onNavigate: (page: 'chat' | 'settings' | 'help') => void;
   credits: number | null;
+  nextRefill: string | null; // New Prop
+  onTriggerPro: () => void;  // New Prop
 }
 
-export default function AppLayout({ children, currentPage, onNavigate, credits }: AppLayoutProps) {
+export default function AppLayout({ children, currentPage, onNavigate, credits, nextRefill, onTriggerPro }: AppLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [timeLeft, setTimeLeft] = useState("");
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
+  // Countdown Logic (hh:mm:ss)
+  useEffect(() => {
+    if (!nextRefill) return;
+    
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const refillTime = new Date(nextRefill).getTime();
+      const distance = refillTime - now;
 
-  const handlePayment = async () => {
-    // 1. Load Razorpay SDK
-    const res = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
-    if (!res) {
-      alert("Razorpay SDK failed to load. Are you online?");
-      return;
-    }
-
-    // 2. Get current user info for pre-fill
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !user.email) return;
-
-    // 3. Create Order on Backend
-    const { data: orderData, error } = await supabase.functions.invoke('razorpay-order', {
-      body: { plan: 'pro' }
-    });
-
-    if (error) {
-      console.error(error);
-      alert("Server error. Please try again.");
-      return;
-    }
-
-    // 4. Open Razorpay Options
-    const options = {
-      key: "rzp_test_RzMK7npP45C2pl", // YOUR ACTUAL KEY
-      amount: orderData.amount,
-      currency: orderData.currency,
-      name: "Kue App",
-      description: "Upgrade to Pro Plan",
-      image: "/favicon.png",
-      order_id: orderData.id,
-      // FIX: Renamed 'response' to '_response' to satisfy Vercel
-      handler: function (_response: any) {
-        alert("Payment Successful! Your account is being upgraded.");
-        window.location.reload(); 
-      },
-      prefill: {
-        email: user.email,
-        contact: "" 
-      },
-      theme: {
-        color: "#4f46e5"
+      if (distance < 0) {
+        setTimeLeft("Ready to refill!");
+      } else {
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+        
+        // Format with leading zeros: 02:05:09
+        const h = String(hours).padStart(2, '0');
+        const m = String(minutes).padStart(2, '0');
+        const s = String(seconds).padStart(2, '0');
+        
+        setTimeLeft(`${h}:${m}:${s}`);
       }
     };
 
-    // @ts-ignore
-    const paymentObject = new window.Razorpay(options);
-    paymentObject.open();
+    updateTimer(); // Run once immediately
+    const timer = setInterval(updateTimer, 1000); // Update every second
+
+    return () => clearInterval(timer);
+  }, [nextRefill]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const NavItem = ({ page, icon: Icon, label }: { page: 'chat' | 'settings' | 'help', icon: any, label: string }) => (
@@ -98,20 +70,36 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
   const CreditCounter = () => (
     <div className="mx-4 mt-auto mb-4 p-4 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-indigo-600">Free Plan</span>
+        <span className="text-xs font-semibold text-indigo-600">Daily Plan</span>
         <Zap size={14} className="text-amber-500 fill-amber-500" />
       </div>
-      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-        {credits !== null ? credits : '-'}
-        <span className="text-sm font-normal text-slate-400">/5</span>
+      
+      <div className="flex items-end gap-1 mb-1">
+        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+          {credits !== null ? credits : '-'}
+        </div>
+        <span className="text-sm font-normal text-slate-400 mb-1">/5</span>
       </div>
-      <p className="text-xs text-slate-500 mt-1">Generations left</p>
+
+      {/* Countdown Timer */}
+      {credits !== null && credits < 5 && (
+         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-white/60 p-1.5 rounded-md mb-3 border border-indigo-100/50">
+            <Clock size={10} className="text-indigo-400" />
+            <span>Refill in: <span className="font-mono font-medium text-indigo-600">{timeLeft}</span></span>
+         </div>
+      )}
+      
+      {/* Privacy Badge (Trust Feature) */}
+      <div className="flex items-center gap-1.5 mb-3 opacity-60 px-1">
+        <ShieldCheck size={10} className="text-green-600"/>
+        <span className="text-[10px] text-slate-400 font-medium">100% Private & Secure</span>
+      </div>
       
       <button 
-        onClick={handlePayment}
-        className="w-full mt-3 py-1.5 text-xs font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
+        onClick={onTriggerPro} // Triggers Modal -> then Razorpay
+        className="w-full py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
       >
-        Upgrade to Pro (₹199)
+        Upgrade to Unlimited
       </button>
     </div>
   );
@@ -146,7 +134,7 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
         </div>
       </aside>
 
-      {/* Mobile Header (High Z-Index to stay above menu) */}
+      {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-[60] bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <img src="/favicon.png" alt="Logo" className="w-8 h-8" />
@@ -160,7 +148,7 @@ export default function AppLayout({ children, currentPage, onNavigate, credits }
         </button>
       </div>
 
-      {/* Mobile Menu Overlay (FIX: Persistent DOM + CSS Transitions) */}
+      {/* Mobile Menu Overlay */}
       <div 
         className={`fixed inset-0 z-50 bg-white pt-20 px-4 md:hidden flex flex-col transition-all duration-300 ease-in-out ${
           isMobileMenuOpen 

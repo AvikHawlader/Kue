@@ -11,6 +11,7 @@ import ReplySimulatorScreen from './pages/ReplySimulatorScreen';
 import SettingsScreen from './pages/SettingsScreen';
 import HelpScreen from './pages/HelpScreen';
 import LandingPage from './pages/LandingPage';
+import ProUpgradeModal from './components/ProUpgradeModal'; // <--- Lifted Up
 
 const queryClient = new QueryClient();
 
@@ -22,32 +23,35 @@ function AppContent({ session }: { session: any }) {
   const [currentSidebarPage, setCurrentSidebarPage] = useState<SidebarPage>('chat');
   const [currentChatScreen, setCurrentChatScreen] = useState<ChatScreen>('list');
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
+  
+  // Global State
   const [credits, setCredits] = useState<number | null>(null);
+  const [nextRefill, setNextRefill] = useState<string | null>(null);
+  const [isProModalOpen, setIsProModalOpen] = useState(false); // Global Modal State
+
+  const fetchCredits = async () => {
+    // Call the smart DB function
+    const { data } = await supabase
+      .rpc('check_and_refill_credits', { user_uuid: session.user.id });
+
+    if (data && data.length > 0) {
+      setCredits(data[0].new_credits);
+      setNextRefill(data[0].next_refill);
+    } else {
+      // Self-healing for new users
+      await supabase.rpc('handle_new_user'); 
+      setCredits(5);
+      // Set fake next refill for UI consistency
+      setNextRefill(new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString());
+    }
+  };
 
   useEffect(() => {
     if (!session?.user) return;
 
-    // 1. Initial Fetch
-    const fetchCredits = async () => {
-      // FIX: Removed 'error' from destructuring below to satisfy Vercel
-      const { data } = await supabase
-        .from('user_credits')
-        .select('credits_remaining')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (data) {
-        setCredits(data.credits_remaining);
-      } else {
-        // If row is missing, force create it (Self-healing)
-        await supabase.rpc('handle_new_user'); 
-        setCredits(5);
-      }
-    };
-
     fetchCredits();
 
-    // 2. Real-time Subscription
+    // Real-time Subscription
     const channel = supabase
       .channel('realtime-credits')
       .on(
@@ -60,6 +64,8 @@ function AppContent({ session }: { session: any }) {
         },
         (payload) => {
           setCredits(payload.new.credits_remaining);
+          // If credits jump back to 5, re-fetch to get new refill time
+          if (payload.new.credits_remaining === 5) fetchCredits();
         }
       )
       .subscribe();
@@ -88,6 +94,8 @@ function AppContent({ session }: { session: any }) {
       currentPage={currentSidebarPage} 
       onNavigate={setCurrentSidebarPage}
       credits={credits} 
+      nextRefill={nextRefill} // Pass down
+      onTriggerPro={() => setIsProModalOpen(true)} // Pass trigger down
     >
       {currentSidebarPage === 'chat' && (
         <div className="animate-in fade-in duration-300">
@@ -110,6 +118,7 @@ function AppContent({ session }: { session: any }) {
               profile={selectedProfile} 
               onBack={handleNavigateToHome} 
               onCreditsUsed={() => {}} 
+              onTriggerPro={() => setIsProModalOpen(true)} // Trigger from Error
             />
           )}
         </div>
@@ -117,6 +126,13 @@ function AppContent({ session }: { session: any }) {
 
       {currentSidebarPage === 'settings' && <SettingsScreen />}
       {currentSidebarPage === 'help' && <HelpScreen />}
+      
+      {/* Global Modal */}
+      <ProUpgradeModal 
+        isOpen={isProModalOpen} 
+        onClose={() => setIsProModalOpen(false)} 
+      />
+      
       <Toaster />
     </AppLayout>
   );

@@ -3,15 +3,15 @@ import { ArrowLeft, Sparkles, RefreshCw, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import KeyboardBar from '../components/KeyboardBar'; 
-import ProUpgradeModal from '../components/ProUpgradeModal';
 
 interface ReplySimulatorScreenProps {
   profile: any;
   onBack: () => void;
   onCreditsUsed: () => void;
+  onTriggerPro: () => void; // <--- ADDED
 }
 
-export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed }: ReplySimulatorScreenProps) {
+export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, onTriggerPro }: ReplySimulatorScreenProps) {
   const [incomingMessage, setIncomingMessage] = useState('');
   const [replyType, setReplyType] = useState<string>('casual');
   const [customReplyType, setCustomReplyType] = useState('');
@@ -20,8 +20,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed }:
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
-  // State for the Upgrade Modal
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  // Removed local Modal state
 
   const handleGenerate = async () => {
     if (!incomingMessage.trim()) {
@@ -61,7 +60,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed }:
         (error.message && error.message.includes("OUT_OF_CREDITS"));
 
       if (isOutOfCredits) {
-        setShowUpgradeModal(true); // <--- Open the Sales Modal
+        onTriggerPro(); // <--- Trigger GLOBAL Modal
         setIsGenerating(false);
         return;
       }
@@ -205,12 +204,6 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed }:
           </div>
         )}
       </main>
-
-      {/* Render the Modal here */}
-      <ProUpgradeModal 
-        isOpen={showUpgradeModal} 
-        onClose={() => setShowUpgradeModal(false)} 
-      />
 
       {KeyboardBar && <KeyboardBar selectedReply={selectedReply} />}
     </div>
