@@ -100,8 +100,7 @@ function AppContent({ session }: { session: any }) {
   };
 
   // --- ROUTING LOGIC FOR LEGAL PAGES ---
-  // We render these completely separate from the sidebar layout for focus,
-  // or we can wrap them in the layout. Here, full screen is often cleaner for reading legal text.
+  // Return early to render full page
   
   if (currentSidebarPage === 'privacy') {
     return <PrivacyPolicy onBack={() => setCurrentSidebarPage('settings')} />;
