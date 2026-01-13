@@ -11,9 +11,47 @@ interface AppLayoutProps {
   onTriggerPro: () => void;
 }
 
-// --- HELPER COMPONENTS ---
-// Defined outside to prevent re-renders
+// --- HELPER COMPONENT: Credit Counter ---
+// We define this outside the main component to keep the code clean
+// and ensure 'onTriggerPro' is used here.
+const CreditCounter = ({ credits, timeLeft, onTriggerPro }: any) => (
+  <div className="mx-4 mt-6 mb-4 p-4 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl">
+    <div className="flex items-center justify-between mb-2">
+      <span className="text-xs font-semibold text-indigo-600">Daily Plan</span>
+      <Zap size={14} className="text-amber-500 fill-amber-500" />
+    </div>
+    <div className="flex items-end gap-1 mb-1">
+      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+        {credits !== null ? credits : '-'}
+      </div>
+      <span className="text-sm font-normal text-slate-400 mb-1">/5</span>
+    </div>
+    
+    {/* Countdown Timer */}
+    {credits !== null && credits < 5 && (
+       <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-white/60 p-1.5 rounded-md mb-3 border border-indigo-100/50">
+          <Clock size={10} className="text-indigo-400" />
+          <span>Refill in: <span className="font-mono font-medium text-indigo-600">{timeLeft}</span></span>
+       </div>
+    )}
+    
+    {/* Privacy Badge */}
+    <div className="flex items-center gap-1.5 mb-3 opacity-60 px-1">
+      <ShieldCheck size={10} className="text-green-600"/>
+      <span className="text-[10px] text-slate-400 font-medium">100% Private</span>
+    </div>
+    
+    {/* UPGRADE BUTTON - This uses onTriggerPro */}
+    <button 
+      onClick={onTriggerPro} 
+      className="w-full py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
+    >
+      Upgrade to Pro
+    </button>
+  </div>
+);
 
+// --- HELPER COMPONENT: Nav Item ---
 const NavItem = ({ page, icon: Icon, label, currentPage, onClick }: any) => (
   <button
     onClick={() => onClick(page)}
@@ -28,39 +66,7 @@ const NavItem = ({ page, icon: Icon, label, currentPage, onClick }: any) => (
   </button>
 );
 
-const CreditCounter = ({ credits, timeLeft, onTriggerPro }: any) => (
-  <div className="mx-4 mt-6 mb-4 p-4 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl">
-    <div className="flex items-center justify-between mb-2">
-      <span className="text-xs font-semibold text-indigo-600">Daily Plan</span>
-      <Zap size={14} className="text-amber-500 fill-amber-500" />
-    </div>
-    <div className="flex items-end gap-1 mb-1">
-      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-        {credits !== null ? credits : '-'}
-      </div>
-      <span className="text-sm font-normal text-slate-400 mb-1">/5</span>
-    </div>
-    {credits !== null && credits < 5 && (
-       <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-white/60 p-1.5 rounded-md mb-3 border border-indigo-100/50">
-          <Clock size={10} className="text-indigo-400" />
-          <span>Refill in: <span className="font-mono font-medium text-indigo-600">{timeLeft}</span></span>
-       </div>
-    )}
-    <div className="flex items-center gap-1.5 mb-3 opacity-60 px-1">
-      <ShieldCheck size={10} className="text-green-600"/>
-      <span className="text-[10px] text-slate-400 font-medium">100% Private</span>
-    </div>
-    <button 
-      onClick={onTriggerPro} 
-      className="w-full py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
-    >
-      Upgrade to Pro
-    </button>
-  </div>
-);
-
-// --- MAIN COMPONENT ---
-
+// --- MAIN LAYOUT COMPONENT ---
 export default function AppLayout({ children, currentPage, onNavigate, credits, nextRefill, onTriggerPro }: AppLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
@@ -98,7 +104,6 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
   return (
     <div className="min-h-screen bg-white flex">
       {/* --- DESKTOP SIDEBAR --- */}
-      {/* Added overflow-y-auto so you can scroll to see bottom buttons on small screens */}
       <aside className="hidden md:flex flex-col w-64 border-r border-slate-200 bg-slate-50/50 backdrop-blur-xl fixed h-full z-20 overflow-y-auto">
         <div className="p-6 flex items-center space-x-3 shrink-0">
           <img src="/favicon.png" alt="Kue Logo" className="w-8 h-8 object-contain" />
@@ -107,19 +112,17 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
           </span>
         </div>
 
-        {/* Navigation Area */}
         <nav className="flex-1 px-4 space-y-2 mt-2">
           <NavItem page="chat" icon={MessageSquare} label="Chat Profiles" currentPage={currentPage} onClick={handleNavClick} />
           <NavItem page="settings" icon={Settings} label="Settings" currentPage={currentPage} onClick={handleNavClick} />
           <NavItem page="help" icon={HelpCircle} label="How to Use" currentPage={currentPage} onClick={handleNavClick} />
         </nav>
 
-        {/* Bottom Section (Sticky at bottom via mt-auto) */}
         <div className="mt-auto shrink-0">
+          {/* USAGE 1: Passing onTriggerPro to CreditCounter */}
           <CreditCounter credits={credits} timeLeft={timeLeft} onTriggerPro={onTriggerPro} />
           
           <div className="p-4 border-t border-slate-200 space-y-1 bg-white/50">
-            {/* Sign Out */}
             <button
               onClick={handleLogout}
               className="w-full flex items-center space-x-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -128,7 +131,6 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
               <span>Sign Out</span>
             </button>
             
-            {/* Support Button (Gmail Trick) */}
             <a
               href="mailto:avikhawlader2002@gmail.com?subject=Kue%20Support%20Request"
               className="w-full flex items-center space-x-3 px-4 py-3 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 rounded-lg transition-colors"
@@ -137,7 +139,6 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
               <span>Contact Support</span>
             </a>
 
-            {/* Legal Links (New!) */}
             <div className="flex items-center justify-center gap-3 pt-2 pb-1">
               <button onClick={() => onNavigate('privacy')} className="text-[10px] text-slate-400 hover:text-indigo-500 hover:underline">Privacy Policy</button>
               <span className="text-slate-300">•</span>
@@ -161,7 +162,7 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
         </button>
       </div>
 
-      {/* --- MOBILE MENU OVERLAY --- */}
+      {/* --- MOBILE MENU --- */}
       <div 
         className={`fixed inset-0 z-50 bg-white pt-20 px-4 md:hidden flex flex-col transition-all duration-300 ease-in-out overflow-y-auto ${
           isMobileMenuOpen 
@@ -176,6 +177,7 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
         </nav>
         
         <div className="pb-8 space-y-4 mt-auto">
+          {/* USAGE 2: Passing onTriggerPro to CreditCounter (Mobile) */}
           <CreditCounter credits={credits} timeLeft={timeLeft} onTriggerPro={onTriggerPro} />
           
           <div className="border-t border-slate-100 pt-2 space-y-1">
@@ -200,7 +202,6 @@ export default function AppLayout({ children, currentPage, onNavigate, credits, 
         </div>
       </div>
 
-      {/* --- MAIN CONTENT AREA --- */}
       <main className="flex-1 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 overflow-y-auto bg-slate-50 min-h-screen">
         <div className="max-w-4xl mx-auto">
           {children}
