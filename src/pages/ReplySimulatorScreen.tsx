@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, Copy, Check, BrainCircuit, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Sparkles, Copy, Check, RotateCcw, ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
-// import { supabase } from '../lib/supabaseClient'; // No longer needed for generation
 import KeyboardBar from '../components/KeyboardBar'; 
 
+// --- TYPES ---
 interface Profile {
   name: string;
   relationship: string;
@@ -17,37 +17,58 @@ interface ReplySimulatorScreenProps {
   onTriggerPro: () => void;
 }
 
+interface AnalysisData {
+  translation: string;
+  threat_level: number;
+  strategy_advice: string;
+}
+
 const LOADING_STEPS = [
   "Reading message...",
   "Consulting Dossier...",
-  "Querying ChromaDB...", // Visual feedback that we are using the DB
-  "Drafting options...",
-  "Refining tone..."
+  "Searching Memory (ChromaDB)...", 
+  "Analyzing Threat Level...",
+  "Drafting replies..."
 ];
 
-// --- HELPER: Map Profile to Python 'Category' ---
-const getCategory = (relationship: string): string => {
+// --- LOGIC: Context Mapping ---
+const getCategory = (relationship: string): 'Work' | 'Dating' | 'Friends' | 'Family' => {
   const r = relationship.toLowerCase();
   if (r.includes('boss') || r.includes('client') || r.includes('work') || r.includes('manager')) return 'Work';
   if (r.includes('date') || r.includes('girlfriend') || r.includes('boyfriend') || r.includes('crush') || r.includes('hinge')) return 'Dating';
   if (r.includes('mom') || r.includes('dad') || r.includes('family')) return 'Family';
-  return 'Friends'; // Default
+  return 'Friends'; 
 };
 
 export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, onTriggerPro }: ReplySimulatorScreenProps) {
   const [incomingMessage, setIncomingMessage] = useState('');
-  const [replyType, setReplyType] = useState<string>('casual');
-  const [customReplyType, setCustomReplyType] = useState('');
+  
+  // SLIDERS STATE
+  const [slider1, setSlider1] = useState(50); // Interest / Professionalism
+  const [slider2, setSlider2] = useState(20); // Spice / Assertiveness
+  
+  // FIXED: Now we use this state in the UI below
+  const [customRequest, setCustomRequest] = useState('');
+  
+  // OUTPUT STATE
   const [replies, setReplies] = useState<string[]>([]);
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  
   const [selectedReply, setSelectedReply] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [lastPaidText, setLastPaidText] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // Animation Loop
+  // Derived Values
+  const category = getCategory(profile.relationship);
+  
+  // Dynamic Labels based on Category
+  const slider1Label = category === 'Work' ? 'Professionalism' : 'Interest';
+  const slider2Label = category === 'Work' ? 'Assertiveness' : (category === 'Dating' ? 'Spice 🌶️' : 'Roast Level');
+
   useEffect(() => {
-    let interval: any;
+    let interval: any; 
     if (isGenerating) {
       setLoadingStep(0);
       interval = setInterval(() => {
@@ -64,6 +85,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     }
 
     setIsGenerating(true);
+    setAnalysis(null); 
     
     if (!isRegeneration) {
       setReplies([]);
@@ -71,31 +93,9 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
     }
 
     try {
-      // 1. Prepare Data for Python Backend
-      const category = getCategory(profile.relationship);
-      
-      // Determine 'custom_input'. 
-      // If user chose a preset like "Flirty" (that isn't default), send it as custom instruction.
-      let customInstruction = null;
-      if (replyType === 'custom') {
-         customInstruction = customReplyType;
-      } else if (replyType !== 'casual') {
-         // Pass presets like "Formal", "Witty" as instructions
-         customInstruction = `Make it ${replyType}`;
-      }
-
-      if (isRegeneration) {
-         customInstruction = customInstruction 
-            ? `${customInstruction}. Give me 3 NEW variations.` 
-            : "Give me 3 NEW variations.";
-      }
-
-      // 2. FETCH from RENDER
       const response = await fetch('https://kue-backend.onrender.com/mastermind', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           incoming_text: incomingMessage,
           dossier: {
@@ -104,37 +104,29 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
             role_title: profile.relationship,
             archetype: "Standard"
           },
-          custom_input: customInstruction
+          interest_score: slider1,
+          spice_score: slider2,
+          custom_input: customRequest || null
         }),
       });
 
       if (!response.ok) {
-        if (response.status === 402) throw new Error("OUT_OF_CREDITS"); // Handle if you add billing later
+        if (response.status === 402) throw new Error("OUT_OF_CREDITS"); 
         throw new Error('Backend failed');
       }
 
       const data = await response.json();
 
-      // 3. Transform Python Dict/Map to Array for React
-      // Python sends: { "replies": { "positive": "...", "neutral": "..." } }
-      // We need: ["...", "...", "..."]
       let replyArray: string[] = [];
-      
-      if (data.replies) {
-         // Extract values from the dictionary object
-         replyArray = Object.values(data.replies) as string[];
-      }
-
+      if (data.replies) replyArray = Object.values(data.replies) as string[];
       setReplies(replyArray);
-      
-      // Optional: Log the Analysis from Backend
+
       if (data.analysis) {
-        console.log("AI Analysis:", data.analysis);
+        setAnalysis(data.analysis);
       }
 
-      toast.success(isRegeneration ? 'Replies refreshed!' : 'Replies generated!');
+      toast.success(isRegeneration ? 'Refreshed!' : 'Decoded & Generated!');
 
-      // 4. Handle Credits (Frontend Logic)
       if (!isRegeneration && incomingMessage !== lastPaidText) {
          onCreditsUsed();
          setLastPaidText(incomingMessage);
@@ -145,7 +137,7 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
       if (error.message.includes("OUT_OF_CREDITS")) {
          onTriggerPro();
       } else {
-         toast.error("Could not connect to Brain. Check Render logs.");
+         toast.error("Connection failed. Check Render.");
       }
     } finally {
       setIsGenerating(false);
@@ -155,162 +147,159 @@ export default function ReplySimulatorScreen({ profile, onBack, onCreditsUsed, o
   const handleCopy = (reply: string, index: number) => {
     navigator.clipboard.writeText(reply);
     setCopiedIndex(index);
-    toast.success('Copied to clipboard');
+    toast.success('Copied');
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // Button Logic
   const isTextEmpty = !incomingMessage.trim();
   const isPaidText = lastPaidText === incomingMessage;
   const canGenerate = !isTextEmpty && !isGenerating && !isPaidText;
   const canRegenerate = !isTextEmpty && !isGenerating && isPaidText;
 
+  const getThreatColor = (level: number) => {
+    if (level < 30) return 'text-green-600 bg-green-50 border-green-200';
+    if (level < 70) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    return 'text-red-600 bg-red-50 border-red-200';
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-indigo-50/20 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* HEADER */}
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="container max-w-md mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={onBack} 
-              className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </button>
-            <div className="text-right">
-              <div className="font-semibold text-slate-900">{profile.name}</div>
-              <div className="text-xs text-slate-500 max-w-[150px] truncate">
-                {profile.relationship_description || profile.relationship}
-              </div>
-            </div>
+        <div className="container max-w-md mx-auto px-4 py-4 flex items-center justify-between">
+          <button onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-indigo-600">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <div className="text-right">
+            <div className="font-semibold text-slate-900">{profile.name}</div>
+            <div className="text-xs text-slate-500">{category} Mode</div>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 container max-w-md mx-auto px-4 py-8 space-y-6">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-            <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider">Incoming Message</h3>
-          </div>
-          <div className="p-4 space-y-4">
+      <main className="flex-1 container max-w-md mx-auto px-4 py-6 space-y-6">
+        
+        {/* INPUT CARD */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-4 space-y-4">
             <textarea
-              placeholder="Paste the message you received here..."
+              placeholder="Paste the message here..."
               value={incomingMessage}
               onChange={(e) => setIncomingMessage(e.target.value)}
-              rows={4}
-              className="w-full p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none transition-all placeholder:text-slate-400 text-slate-800"
+              rows={3}
+              className="w-full p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none text-slate-800"
             />
             
-            <div className="grid grid-cols-1 gap-4">
-               <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-500 uppercase">Vibe</label>
-                  <select 
-                     value={replyType} 
-                     onChange={(e) => setReplyType(e.target.value)}
-                     className="w-full h-11 px-3 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer hover:border-indigo-300"
-                  >
-                     <option value="casual">Casual & Chill (Default)</option>
-                     <option value="flirty">Flirty & Fun</option>
-                     <option value="formal">Professional</option>
-                     <option value="witty">Witty & Smart</option>
-                     <option value="custom">✨ Custom...</option>
-                  </select>
-               </div>
-               {replyType === 'custom' && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                     <label className="text-xs font-semibold text-slate-500 uppercase">Custom Vibe</label>
-                     <input
-                        placeholder="e.g. Like a pirate, Sarcastic..."
-                        value={customReplyType}
-                        onChange={(e) => setCustomReplyType(e.target.value)}
-                        className="w-full h-11 px-3 rounded-lg border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-indigo-50/30"
-                     />
-                  </div>
-               )}
+            {/* SLIDERS SECTION */}
+            <div className="space-y-4 pt-2 border-t border-slate-100">
+              <div className="space-y-1">
+                 <div className="flex justify-between text-xs font-semibold text-slate-500 uppercase">
+                    <span>{slider1Label}</span>
+                    <span>{slider1}%</span>
+                 </div>
+                 <input 
+                   type="range" min="0" max="100" 
+                   value={slider1} onChange={(e) => setSlider1(Number(e.target.value))}
+                   className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                 />
+              </div>
+
+              <div className="space-y-1">
+                 <div className="flex justify-between text-xs font-semibold text-slate-500 uppercase">
+                    <span>{slider2Label}</span>
+                    <span>{slider2}%</span>
+                 </div>
+                 <input 
+                   type="range" min="0" max="100" 
+                   value={slider2} onChange={(e) => setSlider2(Number(e.target.value))}
+                   className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                 />
+              </div>
+              
+              {/* FIXED: ADDED CUSTOM INPUT FIELD HERE */}
+              <div className="space-y-1 pt-2">
+                 <label className="text-xs font-semibold text-slate-500 uppercase">Custom Context (Optional)</label>
+                 <input 
+                    placeholder="e.g. Mention we met at the gym..."
+                    value={customRequest} 
+                    onChange={(e) => setCustomRequest(e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-indigo-400 bg-slate-50"
+                 />
+              </div>
             </div>
-            
-            <div className="flex gap-3">
+
+            {/* BUTTONS */}
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={() => handleGenerate(false)}
                 disabled={!canGenerate}
-                className={`flex-1 h-12 rounded-xl font-medium shadow-lg flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] overflow-hidden relative ${
-                  canGenerate 
-                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200/50' 
-                    : 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
+                className={`flex-1 h-12 rounded-xl font-medium shadow-lg flex items-center justify-center gap-2 transition-all ${
+                  canGenerate ? 'bg-indigo-600 text-white shadow-indigo-200/50 hover:bg-indigo-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                 }`}
               >
                 {isGenerating && !canRegenerate ? (
-                  <div className="flex items-center gap-2 animate-in fade-in duration-300">
-                    <BrainCircuit className="w-5 h-5 animate-pulse" />
-                    <span className="min-w-[140px] text-left">
-                      {LOADING_STEPS[loadingStep] || "Thinking..."}
-                    </span>
-                  </div>
+                   <span className="text-sm">{LOADING_STEPS[loadingStep]}</span>
                 ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    <span>Generate Replies</span>
-                  </>
+                   <> <Sparkles className="w-4 h-4" /> <span>Decode & Reply</span> </>
                 )}
               </button>
 
               <button
                 onClick={() => handleGenerate(true)}
                 disabled={!canRegenerate}
-                title={canRegenerate ? "Try again with current vibe (Free)" : "Enter text first"}
-                className={`w-14 h-12 rounded-xl flex items-center justify-center transition-all border-2 ${
-                  canRegenerate
-                    ? 'border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50 shadow-md cursor-pointer active:scale-95'
-                    : 'border-slate-200 text-slate-300 bg-slate-50 cursor-not-allowed'
+                className={`w-14 h-12 rounded-xl flex items-center justify-center border-2 ${
+                  canRegenerate ? 'border-indigo-600 text-indigo-600' : 'border-slate-200 text-slate-300'
                 }`}
               >
-                 <RotateCcw className={`w-5 h-5 ${isGenerating && canRegenerate ? 'animate-spin' : ''}`} />
+                 <RotateCcw className={`w-5 h-5 ${isGenerating ? 'animate-spin' : ''}`} />
               </button>
             </div>
-          </div>
         </div>
 
+        {/* THE DECODER CARD */}
+        {analysis && !isGenerating && (
+           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className={`rounded-xl border p-4 space-y-3 shadow-sm ${getThreatColor(analysis.threat_level)}`}>
+                 <div className="flex justify-between items-center border-b border-black/10 pb-2">
+                    <div className="flex items-center gap-2 font-bold text-sm uppercase tracking-wide">
+                       <ScanEye className="w-4 h-4"/> AI Analysis
+                    </div>
+                    <div className="text-xs font-bold px-2 py-1 bg-white/50 rounded-md">
+                       Threat: {analysis.threat_level}/100
+                    </div>
+                 </div>
+                 <div className="space-y-2 text-sm">
+                    <p><strong>🧠 Translation:</strong> {analysis.translation}</p>
+                    <p><strong>🛡️ Strategy:</strong> {analysis.strategy_advice}</p>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {/* REPLIES LIST */}
         {replies.length > 0 && (
-          <div className="bg-white rounded-xl border border-indigo-100 shadow-xl shadow-indigo-100/50 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
-             <div className="p-3 bg-indigo-50/50 border-b border-indigo-100 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                   <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center shadow-sm">
-                     <Sparkles className="w-3 h-3 text-white" />
-                   </div>
-                   <span className="font-semibold text-indigo-900 text-sm">Suggested Replies</span>
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-700">
+             {replies.map((reply, index) => (
+                <div
+                 key={index}
+                 onClick={() => setSelectedReply(reply)}
+                 className={`p-4 rounded-xl border bg-white cursor-pointer relative shadow-sm hover:shadow-md transition-all ${
+                     selectedReply === reply ? 'ring-2 ring-indigo-500 border-indigo-500' : 'border-slate-100'
+                 }`}
+                >
+                  <p className="text-slate-800 pr-8">{reply}</p>
+                  <button 
+                     onClick={(e) => { e.stopPropagation(); handleCopy(reply, index); }}
+                     className="absolute top-3 right-3 text-slate-400 hover:text-indigo-600"
+                  >
+                     {copiedIndex === index ? <Check className="w-4 h-4"/> : <Copy className="w-4 h-4"/>}
+                  </button>
                 </div>
-             </div>
-             
-             <div className="p-4 space-y-3">
-                {replies.map((reply, index) => (
-                   <div
-                    key={index}
-                    onClick={() => setSelectedReply(reply)}
-                    className={`group p-4 rounded-xl border cursor-pointer transition-all duration-200 relative ${
-                        selectedReply === reply 
-                           ? 'border-indigo-500 bg-indigo-50 shadow-md ring-1 ring-indigo-500' 
-                           : 'border-slate-100 bg-white hover:border-indigo-200 hover:shadow-sm'
-                    }`}
-                   >
-                     <p className="text-base text-slate-700 pr-8 leading-relaxed">{reply}</p>
-                     <button 
-                        onClick={(e) => { e.stopPropagation(); handleCopy(reply, index); }}
-                        className={`absolute top-3 right-3 p-1.5 rounded-lg transition-colors ${
-                           copiedIndex === index 
-                              ? 'bg-green-100 text-green-600' 
-                              : 'text-slate-300 hover:text-indigo-600 hover:bg-indigo-50'
-                        }`}
-                        title="Copy to clipboard"
-                     >
-                        {copiedIndex === index ? <Check className="w-4 h-4"/> : <Copy className="w-4 h-4"/>}
-                     </button>
-                   </div>
-                ))}
-             </div>
+             ))}
           </div>
         )}
-      </main>
 
+      </main>
       <KeyboardBar selectedReply={selectedReply} />
     </div>
   );
